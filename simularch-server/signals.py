@@ -1,13 +1,11 @@
-from typing import Optional, List
-
 import numpy as np
 import simpy
 from matplotlib import pyplot as plt
 
-from base import Signal, Schema, Monitor
+from base import SeriesOutput, Schema, Monitor, SignalGroup
 
 
-class IntervalPulseSignal(Signal):
+class IntervalPulseSeriesOutput(SeriesOutput):
 
     def __init__(self, env: simpy.Environment, interval: int):
         super().__init__(env)
@@ -20,32 +18,32 @@ class IntervalPulseSignal(Signal):
     def schema(self) -> Schema:
         return [int]
 
-    def get_value(self) -> Optional[List]:
+    def get_current_value(self) -> SignalGroup:
         if self.env.now % self.interval == 0:
-            return [1]
+            return [[1]]
         else:
-            return [0]
+            return [[0]]
 
 
-class PoissonSignal(Signal):
+class PoissonSeriesOutput(SeriesOutput):
 
-    def __init__(self, env: simpy.Environment, lam: float|int|List[float|int], size: int):
+    def __init__(self, env: simpy.Environment, lam: float | int | list[float | int], size: int):
         super().__init__(env)
-        if lam is not List:
-            self.dim = 1
-        else:
+        if isinstance(lam, list):
             self.dim = len(lam)
-        self.series = np.random.poisson(lam=lam, size=(size, self.dim)).tolist()
+        else:
+            self.dim = 1
+        self.series: list[list[int]] = np.random.poisson(lam=lam, size=(size, self.dim)).tolist()
         self.idx = 0
 
     def update(self):
         self.idx += 1
 
-    def get_value(self) -> Optional[List]:
+    def get_current_value(self) -> SignalGroup:
         if len(self.series) > self.idx:
-            return self.series[self.idx]
+            return [self.series[self.idx]]
         else:
-            return [None] * self.dim
+            return [[None] * self.dim]
 
     def schema(self) -> Schema:
         return [float] * self.dim
@@ -53,13 +51,14 @@ class PoissonSignal(Signal):
 
 if __name__ == '__main__':
     env = simpy.Environment()
-    signal = PoissonSignal(env, lam=3, size=100)
-    monitor = Monitor(env)
-    monitor.bind(signal)
+    signal = PoissonSeriesOutput(env, lam=[3, 10], size=100)
+    print(f'signal schema: {signal.schema()}')
+
+    monitor = Monitor(env).bind(signal)
 
     env.run(until=120)
 
     t, v = monitor.observation()
     print(v)
-    plt.plot(t, v[0])
+    plt.plot(t, v)
     plt.show()
