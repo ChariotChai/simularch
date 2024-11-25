@@ -4,7 +4,7 @@ import simpy
 from matplotlib import pyplot as plt
 from simpy import Environment
 
-from base import Filter, Schema, Monitor, SignalGroup, Time, ScalarSignal
+from base import Filter, Schema, Monitor, SignalGroup, Time, ScalarSignal, OutputRawValueCollector
 from signals import IntervalPulseSeriesOutput
 
 type SignalDelayCalculator = Callable[[SignalGroup], Time]
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         cnt = 0
         for i in sg:
             cnt += i[0]
-        return [cnt]
+        return (cnt,)
 
 
     monitor_delay = Monitor(env, cumulate_collector)
@@ -84,6 +84,7 @@ if __name__ == '__main__':
     cust_delay_filter = CustomDelayFilter(env, td).wire(sig)
 
     monitor_cust = Monitor(env, cumulate_collector).bind(cust_delay_filter)
+    rc = OutputRawValueCollector(env).bind(fix_delay_filter)
 
     env.run(until=100)
     t0, v0 = monitor_sig.observation()
@@ -91,6 +92,7 @@ if __name__ == '__main__':
 
     print(v0)
     print(v1)
+    print(rc.raw_value)
 
     plt.plot(t0, v0, color='red')
     # plt.plot(t1, v1, color='blue')

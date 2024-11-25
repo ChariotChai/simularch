@@ -5,8 +5,8 @@ import simpy
 
 type Time = int
 type Scalar = int | float | None
-type ScalarSignal = list[Scalar]
-type Signal = list[Scalar | Signal]
+type ScalarSignal = Tuple[Scalar, ...]  # ['tag', 1, 0.2]
+type Signal = Tuple[Scalar | Signal]  # ['tag', 1, 0.2, ['subtag', 2]]
 type SignalGroup = list[Signal]
 type TimeSeries = list[Tuple[Time, SignalGroup]]
 type Schema = list[type | Schema]
@@ -39,6 +39,19 @@ class WiredInput:
         return self
 
 
+class OutputRawValueCollector(WiredInput):
+    def __init__(self, env: simpy.Environment):
+        super().__init__()
+        self.env = env
+        self.raw_value = []
+        self.env.process(self.__collect__())
+
+    def __collect__(self):
+        while True:
+            self.raw_value.append(self.wired_output.get_current_value())
+            yield self.env.timeout(delay=1)
+
+
 type MonitorCollector = Callable[[SignalGroup], ScalarSignal]
 
 
@@ -59,7 +72,7 @@ class Monitor(WiredInput):
 
     def __default_collector(self, sg: SignalGroup) -> ScalarSignal:
         if len(sg) == 0:
-            return [None]
+            return (None,)
         if not self.checked:
             if len(sg) == 1:
                 for s in sg[0]:
